@@ -1504,7 +1504,14 @@ $('#pill').onclick=()=>go('heute');
 /* ================= KONTO & SYNC ================= */
 /* Firebase-Konfiguration aus der Firebase-Konsole (Projekteinstellungen › Deine Apps › Web-App).
    Solange hier null steht, funktioniert nur der Fortschritts-Code. */
-const FIREBASE_CONFIG=null;
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyATNB4tmqlsiDdJWUWiOUWvaZ6oRqhYAv4",
+  authDomain:"riffwerk-80b10.firebaseapp.com",
+  projectId:"riffwerk-80b10",
+  storageBucket:"riffwerk-80b10.firebasestorage.app",
+  messagingSenderId:"862638915643",
+  appId:"1:862638915643:web:675178504882a01a779c1e"
+};
 const FB_VER='10.12.2';
 const SYNC_KEYS=['progress','unlockLvl','days','changes','sound','gate','lat'];
 var fb=null,fbUser=null,pushTimer=null,syncing=false;
