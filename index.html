@@ -22,6 +22,8 @@ nav button.on{background:var(--acc);border-color:var(--acc);color:#fff}
 nav button.main{color:var(--txt);border-color:var(--acc)}
 nav button.main.on{color:#fff}
 .micbar{display:flex;align-items:center;gap:8px;flex:none;margin-left:auto;align-self:center}
+#acctBtn.in{border-color:var(--ok);color:var(--ok)}
+textarea{width:100%;min-height:70px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:12px ui-monospace,Menlo,monospace}
 #micBtn.live{border-color:var(--ok);color:var(--ok)}
 .lvl{width:64px;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;position:relative}
 .lvl i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ok);transition:width .05s}
@@ -130,7 +132,7 @@ li{margin:4px 0}
 </style>
 </head>
 <body>
-<header><h1>Riff<span>werk</span></h1><span class="sub">Dein Gitarren-Coach – vom Lagerfeuer bis Metal</span><div class="micbar"><button class="btn sm" id="micBtn">🎤 Mikro aus</button><div class="lvl" title="Eingangspegel"><i id="lvlBar"></i></div></div></header>
+<header><h1>Riff<span>werk</span></h1><span class="sub">Dein Gitarren-Coach – vom Lagerfeuer bis Metal</span><div class="micbar"><button class="btn sm" id="acctBtn">👤 Anmelden</button><button class="btn sm" id="micBtn">🎤 Mikro aus</button><div class="lvl" title="Eingangspegel"><i id="lvlBar"></i></div></div></header>
 <nav><div class="in" id="nav"></div></nav>
 <main>
 
@@ -144,6 +146,7 @@ li{margin:4px 0}
           <div class="xpbar"><i id="lpXp"></i></div>
           <div class="mut" id="lpXpTxt"></div>
           <div class="row"><span class="badge hot" id="streak"></span><span class="badge" id="total"></span></div>
+          <p class="mut" id="lpSyncHint"></p>
         </div>
         <div><button class="btn pri big" id="lpContinue">▶ Weiter lernen</button><div class="mut" id="lpNextTxt" style="margin-top:6px"></div></div>
       </div>
@@ -408,6 +411,42 @@ li{margin:4px 0}
   </div>
 </section>
 
+<!-- ================= KONTO ================= -->
+<section class="tab" id="t-konto" hidden>
+  <div class="card">
+    <h2>Konto & Synchronisierung</h2>
+    <p class="mut">Mit einem Konto ist dein Fortschritt (Sterne, freigeschaltete Lektionen, Übungstage, Bestwerte, Einstellungen) auf iPhone, MacBook und in jedem Browser gleich.</p>
+    <p id="acctMsg" class="mut"></p>
+    <div id="acctOut">
+      <div class="row"><button class="btn pri" id="gLogin">Mit Google anmelden</button></div>
+      <h3>Oder mit E-Mail</h3>
+      <div class="row">
+        <input type="text" id="aMail" placeholder="E-Mail" autocomplete="email" style="min-width:220px">
+        <input type="password" id="aPass" placeholder="Passwort (mind. 6 Zeichen)" autocomplete="current-password" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:14px Inter,sans-serif;min-width:220px">
+      </div>
+      <div class="row">
+        <button class="btn" id="aLogin">Anmelden</button>
+        <button class="btn" id="aReg">Neues Konto anlegen</button>
+        <button class="btn sm ghost" id="aReset">Passwort vergessen?</button>
+      </div>
+    </div>
+    <div id="acctIn" hidden>
+      <p>Angemeldet als <b id="acctName"></b></p>
+      <p class="mut" id="syncInfo"></p>
+      <div class="row"><button class="btn" id="syncBtn">↻ Jetzt synchronisieren</button><button class="btn ghost" id="logoutBtn">Abmelden</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Ohne Konto übertragen</h2>
+    <p class="mut">Erzeuge hier einen Fortschritts-Code, kopiere ihn (z. B. per AirDrop oder Notizen) und füge ihn im anderen Browser unten ein. Vorhandener Fortschritt wird zusammengeführt, nichts geht verloren.</p>
+    <div class="row"><button class="btn" id="expBtn">Code erzeugen</button><button class="btn" id="copyBtn">Kopieren</button></div>
+    <textarea id="expTxt" readonly placeholder="Hier erscheint dein Code"></textarea>
+    <h3>Code einfügen</h3>
+    <textarea id="impTxt" placeholder="RW1:…"></textarea>
+    <div class="row"><button class="btn pri" id="impBtn">Übernehmen</button><span class="mut" id="impMsg"></span></div>
+  </div>
+</section>
+
 <!-- ================= STIMMEN ================= -->
 <section class="tab" id="t-stimmen" hidden>
   <div class="card tuner">
@@ -434,7 +473,8 @@ li{margin:4px 0}
 const $=s=>document.querySelector(s);
 const store={
   get(k,d){try{const v=localStorage.getItem('riffwerk.'+k);return v?JSON.parse(v):d}catch(e){return d}},
-  set(k,v){try{localStorage.setItem('riffwerk.'+k,JSON.stringify(v))}catch(e){}}
+  raw(k,v){try{localStorage.setItem('riffwerk.'+k,JSON.stringify(v))}catch(e){}},
+  set(k,v){store.raw(k,v);if(typeof schedulePush==='function')schedulePush(k);}
 };
 
 /* ================= DATEN ================= */
@@ -1461,12 +1501,119 @@ function updatePill(){
 }
 $('#pill').onclick=()=>go('heute');
 
+/* ================= KONTO & SYNC ================= */
+/* Firebase-Konfiguration aus der Firebase-Konsole (Projekteinstellungen › Deine Apps › Web-App).
+   Solange hier null steht, funktioniert nur der Fortschritts-Code. */
+const FIREBASE_CONFIG=null;
+const FB_VER='10.12.2';
+const SYNC_KEYS=['progress','unlockLvl','days','changes','sound','gate','lat'];
+var fb=null,fbUser=null,pushTimer=null,syncing=false;
+function acctMsg(t,err){const m=$('#acctMsg');m.textContent=t||'';m.className=err?'err':'mut';}
+function localState(){const o={};SYNC_KEYS.forEach(k=>{const v=store.get(k,undefined);if(v!==undefined)o[k]=v;});return o;}
+function mergeState(a,b){
+  const m=Object.assign({},b,a);
+  const pa=a.progress||{},pb=b.progress||{},pr={};
+  new Set([...Object.keys(pa),...Object.keys(pb)]).forEach(k=>{pr[k]=Math.max(pa[k]||0,pb[k]||0);});
+  m.progress=pr;
+  m.unlockLvl=Math.max(a.unlockLvl||0,b.unlockLvl||0);
+  m.days=[...new Set([...(a.days||[]),...(b.days||[])])].sort();
+  const seen=new Set(),ch=[];
+  [...(a.changes||[]),...(b.changes||[])].forEach(x=>{const k=x.p+'|'+x.n+'|'+x.d;if(!seen.has(k)){seen.add(k);ch.push(x);}});
+  ch.sort((x,y)=>x.d<y.d?1:x.d>y.d?-1:0);m.changes=ch.slice(0,300);
+  return m;
+}
+function applyState(s){
+  SYNC_KEYS.forEach(k=>{if(s[k]!==undefined)store.raw(k,s[k]);});
+  progress=store.get('progress',{});unlockLvl=store.get('unlockLvl',0);
+  sound=store.get('sound','clean');document.querySelectorAll('.snd').forEach(o=>o.value=sound);
+  Mic.gate=store.get('gate',12)/1000;Mic.lat=store.get('lat',80)/1000;
+  $('#gate').value=Math.round(Mic.gate*1000);$('#lat').value=Math.round(Mic.lat*1000);
+  renderPath();renderStats();renderHist();
+}
+function schedulePush(k){
+  if(!SYNC_KEYS.includes(k)||!fb||!fbUser||syncing)return;
+  clearTimeout(pushTimer);pushTimer=setTimeout(()=>syncNow(),2000);
+}
+async function syncNow(){
+  if(!fb||!fbUser)return;
+  syncing=true;
+  try{
+    const F=fb.F,ref=F.doc(fb.db,'riffwerk',fbUser.uid);
+    const snap=await F.getDoc(ref);
+    const remote=snap.exists()?JSON.parse(snap.data().data||'{}'):{};
+    const merged=mergeState(localState(),remote);
+    applyState(merged);
+    await F.setDoc(ref,{data:JSON.stringify(merged),updated:Date.now()});
+    $('#syncInfo').textContent='Zuletzt synchronisiert: '+new Date().toLocaleTimeString('de-DE');
+  }catch(e){
+    $('#syncInfo').textContent='Synchronisierung fehlgeschlagen ('+(e.code||e.message)+'). Prüfe die Internetverbindung.';
+  }
+  syncing=false;
+}
+const AUTH_ERR={'auth/invalid-email':'Ungültige E-Mail-Adresse.','auth/missing-password':'Bitte Passwort eingeben.','auth/weak-password':'Passwort zu kurz (mind. 6 Zeichen).',
+  'auth/email-already-in-use':'Für diese E-Mail gibt es schon ein Konto – bitte anmelden.','auth/invalid-credential':'E-Mail oder Passwort falsch.',
+  'auth/wrong-password':'E-Mail oder Passwort falsch.','auth/user-not-found':'Kein Konto mit dieser E-Mail.','auth/too-many-requests':'Zu viele Versuche – bitte kurz warten.',
+  'auth/popup-closed-by-user':'Anmeldung abgebrochen.','auth/unauthorized-domain':'Diese Adresse ist in Firebase noch nicht freigegeben (Authentication › Einstellungen › Autorisierte Domains).',
+  'auth/network-request-failed':'Keine Internetverbindung.'};
+function authErr(e){acctMsg(AUTH_ERR[e.code]||('Fehler: '+(e.code||e.message)),true);}
+function acctUi(){
+  const on=!!fbUser;
+  $('#acctOut').hidden=on||!FIREBASE_CONFIG;$('#acctIn').hidden=!on;
+  $('#acctBtn').textContent=on?'👤 '+(fbUser.displayName||fbUser.email||'Konto').split(' ')[0]:'👤 Anmelden';
+  $('#acctBtn').classList.toggle('in',on);
+  if(on){$('#acctName').textContent=fbUser.displayName?fbUser.displayName+' ('+fbUser.email+')':fbUser.email;acctMsg('');}
+  else if(!FIREBASE_CONFIG)acctMsg('Das Konto-Login ist vorbereitet, aber noch nicht eingerichtet. Bis dahin kannst du deinen Fortschritt unten per Code übertragen.');
+  $('#lpSyncHint').innerHTML=on?'☁️ Fortschritt wird mit deinem Konto synchronisiert.':'Fortschritt ist nur in diesem Browser gespeichert. <a href="#" id="lpLoginLink" style="color:var(--acc2)">Anmelden oder übertragen</a>';
+  const lk=$('#lpLoginLink');if(lk)lk.onclick=e=>{e.preventDefault();go('konto');};
+}
+async function fbInit(){
+  acctUi();
+  if(!FIREBASE_CONFIG)return;
+  try{
+    const base='https://www.gstatic.com/firebasejs/'+FB_VER+'/';
+    const [appM,A,F]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-firestore.js')]);
+    const app=appM.initializeApp(FIREBASE_CONFIG);
+    fb={auth:A.getAuth(app),db:F.getFirestore(app),A:A,F:F};
+    A.getRedirectResult(fb.auth).catch(authErr);
+    A.onAuthStateChanged(fb.auth,async u=>{fbUser=u;acctUi();if(u)await syncNow();});
+  }catch(e){acctMsg('Konto-Dienst nicht erreichbar ('+e.message+').',true);}
+}
+$('#acctBtn').onclick=()=>go('konto');
+$('#gLogin').onclick=async()=>{
+  if(!fb)return;const A=fb.A,prov=new A.GoogleAuthProvider();
+  try{await A.signInWithPopup(fb.auth,prov);}
+  catch(e){if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment')A.signInWithRedirect(fb.auth,prov);else authErr(e);}
+};
+$('#aLogin').onclick=async()=>{if(!fb)return;try{await fb.A.signInWithEmailAndPassword(fb.auth,$('#aMail').value.trim(),$('#aPass').value);}catch(e){authErr(e);}};
+$('#aReg').onclick=async()=>{if(!fb)return;try{await fb.A.createUserWithEmailAndPassword(fb.auth,$('#aMail').value.trim(),$('#aPass').value);acctMsg('Konto angelegt – dein bisheriger Fortschritt wurde übernommen.');}catch(e){authErr(e);}};
+$('#aReset').onclick=async()=>{if(!fb)return;const m=$('#aMail').value.trim();if(!m){acctMsg('Bitte zuerst die E-Mail eintragen.',true);return;}try{await fb.A.sendPasswordResetEmail(fb.auth,m);acctMsg('E-Mail zum Zurücksetzen wurde verschickt.');}catch(e){authErr(e);}};
+$('#logoutBtn').onclick=async()=>{if(fb)await fb.A.signOut(fb.auth);};
+$('#syncBtn').onclick=()=>syncNow();
+/* Fortschritts-Code */
+function encodeState(){return 'RW1:'+btoa(unescape(encodeURIComponent(JSON.stringify(localState()))));}
+function decodeState(t){t=t.trim();if(!t.startsWith('RW1:'))throw new Error('kein Riffwerk-Code');return JSON.parse(decodeURIComponent(escape(atob(t.slice(4).replace(/\s+/g,'')))));}
+$('#expBtn').onclick=()=>{$('#expTxt').value=encodeState();};
+$('#copyBtn').onclick=async()=>{
+  if(!$('#expTxt').value)$('#expTxt').value=encodeState();
+  try{await navigator.clipboard.writeText($('#expTxt').value);$('#copyBtn').textContent='✓ Kopiert';}
+  catch(e){$('#expTxt').select();$('#copyBtn').textContent='Markiert – jetzt kopieren';}
+  setTimeout(()=>{$('#copyBtn').textContent='Kopieren';},2500);
+};
+$('#impBtn').onclick=()=>{
+  try{
+    const s=decodeState($('#impTxt').value);
+    applyState(mergeState(localState(),s));
+    $('#impMsg').textContent='✓ Fortschritt übernommen: '+Object.values(progress).filter(x=>x>0).length+' Lektionen geschafft.';
+    $('#impTxt').value='';if(fbUser)syncNow();
+  }catch(e){$('#impMsg').textContent='Code ungültig ('+e.message+').';}
+};
+
 /* ================= START ================= */
 (function init(){
   const f=focus();$('#fName').textContent=f.name;$('#fDesc').textContent=f.desc;
   renderStats();renderRoutine();renderQuick();renderHist();
   setJam(f.prog,f.pat);setRiff(f.riff);micBtnUi();
-  go('lernen');
+  go('lernen');fbInit();
 })();
 </script>
 </body>
