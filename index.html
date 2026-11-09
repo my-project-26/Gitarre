@@ -50,6 +50,7 @@ label{font-size:14px;color:var(--mut);display:inline-flex;align-items:center;gap
 .badge.hot{border-color:var(--acc);color:var(--acc2)}
 .jamview{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:12px}
 .bigchord{font-family:Oswald,sans-serif;font-size:68px;line-height:1.05;color:#fff}
+.ndia{opacity:.75;margin:4px 0}
 .midchord{font-family:Oswald,sans-serif;font-size:40px;line-height:1.1;color:var(--mut)}
 .steps{display:flex;gap:5px;flex-wrap:wrap}
 .stp{width:46px;height:58px;border-radius:8px;background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid transparent;position:relative}
@@ -168,7 +169,7 @@ li{margin:4px 0}
       <div id="lJam" hidden>
         <div class="jamview">
           <div><div class="mut">Jetzt</div><div class="bigchord" id="lNow">–</div><div id="lDia"></div></div>
-          <div><div class="mut">Als Nächstes</div><div class="midchord" id="lNext">–</div><div class="mut" id="lBar"></div></div>
+          <div><div class="mut">Als Nächstes</div><div class="midchord" id="lNext">–</div><div id="lNextDia" class="ndia"></div><div class="mut" id="lBar"></div></div>
         </div>
         <div class="steps" id="lSteps"></div>
         <p class="mut" id="lLegend"></p>
@@ -261,7 +262,7 @@ li{margin:4px 0}
   <div class="card">
     <div class="jamview">
       <div><div class="mut">Jetzt</div><div class="bigchord" id="jNow">–</div><div id="jDia"></div></div>
-      <div><div class="mut">Als Nächstes</div><div class="midchord" id="jNext">–</div><div class="mut" id="jBar"></div><p class="mut" id="jProgTip"></p></div>
+      <div><div class="mut">Als Nächstes</div><div class="midchord" id="jNext">–</div><div id="jNextDia" class="ndia"></div><div class="mut" id="jBar"></div><p class="mut" id="jProgTip"></p></div>
     </div>
     <div class="steps" id="jSteps"></div>
     <p class="mut" id="jLegend"></p>
@@ -916,7 +917,7 @@ function renderStepsInto(el,legendEl,p){
 }
 function showChordIn(v,ch,k){
   v.now.textContent=ch[k];v.dia.innerHTML=diagram(ch[k],CHORDS[ch[k]],120);
-  v.next.textContent=ch[(k+1)%ch.length];
+  const nx=ch[(k+1)%ch.length];v.next.textContent=nx;if(v.ndia)v.ndia.innerHTML=diagram(nx,CHORDS[nx],100);
   v.bar.textContent='Takt '+(k+1)+' von '+ch.length;
 }
 function renderTab(ev){
@@ -1123,7 +1124,7 @@ function openLesson(idx){
   window.scrollTo(0,0);
 }
 $('#lDias').onclick=e=>{const d=e.target.closest('.chd');if(!d)return;ac();strum(CHORDS[d.dataset.c],ctx.currentTime+0.03,'D',0.32,false);};
-function lv(){return {now:$('#lNow'),next:$('#lNext'),dia:$('#lDia'),bar:$('#lBar'),steps:$('#lSteps')};}
+function lv(){return {now:$('#lNow'),next:$('#lNext'),ndia:$('#lNextDia'),dia:$('#lDia'),bar:$('#lBar'),steps:$('#lSteps')};}
 function renderStrs(done){$('#lStrs').innerHTML=STR_NAMES.map((n,i)=>'<span class="'+(done.includes(i)?'ok':'')+'">'+n+'</span>').join('');}
 
 $('#lStart').onclick=async()=>{if(LS.running){lessonStop();return;}await lessonStart();};
@@ -1226,7 +1227,7 @@ fillSelect($('#jProg'),PROGS.map(p=>[p.id,p.name]));
 fillSelect($('#jPat'),PATTERNS.map(p=>[p.id,p.name]));
 bindBpm('#jBpmR','#jBpm');
 const JC={results:[],ch:[]};
-const jView={now:$('#jNow'),next:$('#jNext'),dia:$('#jDia'),bar:$('#jBar'),steps:$('#jSteps')};
+const jView={now:$('#jNow'),next:$('#jNext'),ndia:$('#jNextDia'),dia:$('#jDia'),bar:$('#jBar'),steps:$('#jSteps')};
 function curPat(){return PATTERNS.find(p=>p.id===$('#jPat').value);}
 function renderJamSteps(){const p=curPat();renderStepsInto($('#jSteps'),$('#jLegend'),p);$('#jTip').textContent=p.tip;}
 function jamChords(){const id=$('#jProg').value,p=PROGS.find(x=>x.id===id);return parseChords(id==='custom'?$('#jCustom').value:p.chords);}
@@ -1237,7 +1238,7 @@ function setJam(progId,patId){
   $('#jCustom').hidden=progId!=='custom';$('#jProgTip').textContent=p.tip;
   renderJamSteps();$('#jErr').textContent='';
   const ch=jamChords().filter(c=>CHORDS[c]);
-  if(ch.length)showChordIn(jView,ch,0);else{jView.now.textContent='–';jView.next.textContent='–';jView.dia.innerHTML='';jView.bar.textContent='';}
+  if(ch.length)showChordIn(jView,ch,0);else{jView.now.textContent='–';jView.next.textContent='–';jView.dia.innerHTML='';jView.ndia.innerHTML='';jView.bar.textContent='';}
 }
 $('#jProg').onchange=()=>{seqStop();setJam($('#jProg').value);};
 $('#jPat').onchange=()=>{seqStop();renderJamSteps();};
